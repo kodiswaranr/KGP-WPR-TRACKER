@@ -3,7 +3,6 @@ import pandas as pd
 import os
 import re
 import base64
-
 # --------------------------
 # Config / File paths
 # --------------------------
@@ -43,54 +42,26 @@ def load_logo_as_base64(path: str, width: int = 80) -> str:
 st.set_page_config(page_title="KGP - WPR TRACKING PORTAL", layout="wide")
 
 # --------------------------
-# Header bar (logos + title, responsive)
+# Header bar (logos + title)
 # --------------------------
+# Use equal sizes for symmetry (both 80 px)
 left_logo_html = load_logo_as_base64(left_logo, 80)
 right_logo_html = load_logo_as_base64(right_logo, 80)
 
 st.markdown(
     """
-    <style>
-    /* Default (desktop) */
-    .header-container {
-        background-color: #f2f6fa;
-        padding: 14px;
-        border-radius: 8px;
-        margin-bottom: 14px;
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-end;
-    }
-    .header-logo {
-        width: 80px;
-    }
-    .header-title {
-        font-size: 40px;
-        font-weight: 700;
-        color: #111;
-        margin: 0;
-    }
-
-    /* Mobile view (max 768px) */
-    @media (max-width: 768px) {
-        .header-logo {
-            width: 50px;  /* smaller logos */
-        }
-        .header-title {
-            font-size: 24px;  /* smaller title */
-        }
-    }
-    </style>
-
-    <div class='header-container'>
+    <div style='background-color:#f2f6fa; padding:14px; border-radius:8px; margin-bottom:14px;'>
+      <div style='display:flex; justify-content:space-between; align-items:flex-end;'>
         <div style='flex:1; text-align:left;'>{left}</div>
         <div style='flex:2; text-align:center;'>
-            <h1 class='header-title'>KGP WPR PORTAL</h1>
+          <h1 style='font-size:40px; font-weight:700; color:#111; margin:0;'>
+            KGP WPR PORTAL
+          </h1>
         </div>
         <div style='flex:1; text-align:right;'>{right}</div>
+      </div>
     </div>
-    """.format(left=left_logo_html.replace("<img", "<img class='header-logo'"),
-               right=right_logo_html.replace("<img", "<img class='header-logo'")),
+    """.format(left=left_logo_html, right=right_logo_html),
     unsafe_allow_html=True,
 )
 
@@ -106,7 +77,7 @@ if os.path.exists(excel_file):
 else:
     orig_df = pd.DataFrame()
 
-# Build normalized mapping
+# Build normalized mapping: normalized_key -> original column name
 norm_to_orig = {}
 orig_cols = list(orig_df.columns)
 seen = {}
@@ -122,6 +93,7 @@ for col in orig_cols:
     norm_to_orig[norm_unique] = col
     normalized_cols.append(norm_unique)
 
+# Create working dataframe with normalized column names
 if not orig_df.empty:
     working_df = orig_df.copy()
     working_df.columns = normalized_cols
@@ -139,6 +111,7 @@ REQ_ANUM = "ANUMBER"
 required_ok = not working_df.empty and (REQ_NAME in working_df.columns) and (REQ_ANUM in working_df.columns)
 
 def get_orig_values(norm_key: str, fallback: list):
+    """Return unique values from original dataframe column mapped by normalized key."""
     orig_col = norm_to_orig.get(norm_key)
     if orig_col and orig_col in orig_df.columns:
         vals = orig_df[orig_col].dropna().astype(str).unique().tolist()
@@ -149,9 +122,11 @@ def get_orig_values(norm_key: str, fallback: list):
 if not required_ok:
     st.error("❌ Excel file not found or missing required columns (NAME, A NUMBER). Please ensure the sheet contains those columns.")
 else:
+    # fixed boss name (read-only)
     kgp_incharge = "CAPO MR UGGERI GIANPIERO"
     st.text_input("KGP OVER-ALL UNDER", value=kgp_incharge, disabled=True)
 
+    # Filter employees under this boss
     under_col_norm = normalize_col("KGP OVER-ALL UNDER")
     if under_col_norm in working_df.columns:
         employees_filtered = working_df.loc[
@@ -168,6 +143,7 @@ else:
     if employee:
         emp_row = working_df[working_df[REQ_NAME] == employee].iloc[0]
 
+        # Auto-display read-only fields
         a_number = emp_row.get(REQ_ANUM, "")
         job_title = emp_row.get(normalize_col("JOB TITLE"), "")
         iqama = emp_row.get(normalize_col("IQAMA"), "")
@@ -176,6 +152,7 @@ else:
         st.text_input("Job Title", value=job_title, disabled=True)
         st.text_input("IQAMA", value=iqama, disabled=True)
 
+        # Dropdown options
         work_area_options = get_orig_values(normalize_col("WORK AREA AT SITE"), ["Area A", "Area B", "Area C"])
         dept_options = get_orig_values(normalize_col("DISCIPLINE DEPARTMENT"), ["Mechanical", "Electrical", "Civil", "Safety"])
         permit_options = get_orig_values(normalize_col("PERMIT TYPE"), ["Hot Work", "Cold Work", "Confined Space", "Electrical"])
@@ -262,3 +239,6 @@ if admin_pass:
 
 st.markdown("---")
 st.caption("Tip: set WPR_ADMIN_PASSWORD env var to change admin password and avoid hardcoding.")
+
+
+
