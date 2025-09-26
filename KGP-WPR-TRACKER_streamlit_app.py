@@ -3,10 +3,6 @@ import pandas as pd
 import os
 import re
 import base64
-streamlit
-pandas
-openpyxl
-
 # --------------------------
 # Config / File paths
 # --------------------------
@@ -243,6 +239,7 @@ if admin_pass:
 
 st.markdown("---")
 st.caption("Tip: set WPR_ADMIN_PASSWORD env var to change admin password and avoid hardcoding.")
+
 
 
 
