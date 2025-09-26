@@ -46,7 +46,7 @@ st.set_page_config(page_title="KGP - WPR TRACKING PORTAL", layout="wide")
 # --------------------------
 # Use equal sizes for symmetry (both 60 px)
 left_logo_html = load_logo_as_base64(left_logo, 80)
-right_logo_html = load_logo_as_base64(right_logo, 60)
+right_logo_html = load_logo_as_base64(right_logo, 70)
 
 st.markdown(
     """
@@ -239,6 +239,7 @@ if admin_pass:
 
 st.markdown("---")
 st.caption("Tip: set WPR_ADMIN_PASSWORD env var to change admin password and avoid hardcoding.")
+
 
 
 
