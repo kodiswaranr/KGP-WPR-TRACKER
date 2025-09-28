@@ -239,10 +239,31 @@ if admin_pass:
 
 st.markdown("---")
 st.caption("Tip: set WPR_ADMIN_PASSWORD env var to change admin password and avoid hardcoding.")
+import matplotlib.pyplot as plt
+
 if submitted:
-    st.success("✅ Permit details saved successfully!")
-    st.markdown("### 📸 Update Summary")
-    st.json(new_row)   # or use st.table(pd.DataFrame([new_row]))
+    try:
+        final_df.to_excel(excel_file, index=False)
+        st.success("✅ Permit details saved successfully!")
+
+        # 📸 Create image from DataFrame
+        df_preview = pd.DataFrame([new_row])
+
+        fig, ax = plt.subplots(figsize=(8, 2))
+        ax.axis('tight')
+        ax.axis('off')
+        table = ax.table(cellText=df_preview.values, colLabels=df_preview.columns, loc='center')
+        plt.savefig("update_summary.png")
+
+        # Show in Streamlit
+        st.image("update_summary.png", caption="Update Summary")
+
+        # Download button for image
+        with open("update_summary.png", "rb") as f:
+            st.download_button("📥 Download Update Image", f, file_name="update_summary.png", mime="image/png")
+
+    except Exception as e:
+        st.error(f"Failed to save to Excel: {e}")
 
 
 
