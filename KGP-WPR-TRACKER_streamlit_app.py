@@ -214,31 +214,6 @@ else:
 # --------------------------
 st.markdown("---")
 st.markdown("### 🔐 Admin: Download Excel")
-
-admin_pass = st.text_input("Enter admin password to download full Excel file", type="password")
-
-if admin_pass:
-    if admin_pass == ADMIN_PASSWORD:
-        st.success("✅ Correct password. You can download the Excel file below.")
-        if os.path.exists(excel_file):
-            try:
-                with open(excel_file, "rb") as f:
-                    data_bytes = f.read()
-                st.download_button(
-                    label="📥 Download full Excel file",
-                    data=data_bytes,
-                    file_name="WPR_TRACKING_FILE.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-            except Exception as e:
-                st.error(f"Could not prepare download: {e}")
-        else:
-            st.error("Excel file not found for download.")
-    else:
-        st.error("❌ Incorrect admin password.")
-
-st.markdown("---")
-st.caption("Tip: set WPR_ADMIN_PASSWORD env var to change admin password and avoid hardcoding.")
 import matplotlib.pyplot as plt
 
 if submitted:
@@ -249,24 +224,38 @@ if submitted:
         # 📸 Create image from DataFrame
         df_preview = pd.DataFrame([new_row])
 
-        fig, ax = plt.subplots(figsize=(8, 2))
+        fig, ax = plt.subplots(figsize=(10, 2))
         ax.axis('tight')
         ax.axis('off')
-        table = ax.table(cellText=df_preview.values, colLabels=df_preview.columns, loc='center')
-        plt.savefig("update_summary.png")
+        table = ax.table(cellText=df_preview.values,
+                         colLabels=df_preview.columns,
+                         loc='center')
+        table.auto_set_font_size(False)
+        table.set_fontsize(8)
+        table.scale(1.2, 1.2)
+
+        image_file = "update_summary.png"
+        plt.savefig(image_file, bbox_inches='tight')
+        plt.close(fig)
 
         # Show in Streamlit
-        st.image("update_summary.png", caption="Update Summary")
+        st.image(image_file, caption="📸 Update Summary")
 
-        # Download button for image
-        with open("update_summary.png", "rb") as f:
-            st.download_button("📥 Download Update Image", f, file_name="update_summary.png", mime="image/png")
+        # Download button for the image
+        with open(image_file, "rb") as f:
+            st.download_button("📥 Download Update Image",
+                               f,
+                               file_name="update_summary.png",
+                               mime="image/png")
+
+        # WhatsApp share button (click-to-chat)
+        phone_number = "966XXXXXXXXX"  # replace with target phone (with country code)
+        message = "Please find the updated WPR record attached."
+        wa_url = f"https://wa.me/{phone_number}?text={message}"
+        st.markdown(f"[📲 Send via WhatsApp]({wa_url})")
 
     except Exception as e:
-        st.error(f"Failed to save to Excel: {e}")
-
-
-
+        st.error(f"Failed to save to Excel or generate image: {e}")
 
 
 
