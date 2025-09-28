@@ -214,45 +214,14 @@ else:
 # --------------------------
 st.markdown("---")
 st.markdown("### 🔐 Admin: Download Excel")
-import matplotlib.pyplot as plt
-
 if submitted:
     try:
         final_df.to_excel(excel_file, index=False)
         st.success("✅ Permit details saved successfully!")
 
-        # 📸 Create image from DataFrame
-        df_preview = pd.DataFrame([new_row])
-
-        fig, ax = plt.subplots(figsize=(10, 2))
-        ax.axis('tight')
-        ax.axis('off')
-        table = ax.table(cellText=df_preview.values,
-                         colLabels=df_preview.columns,
-                         loc='center')
-        table.auto_set_font_size(False)
-        table.set_fontsize(8)
-        table.scale(1.2, 1.2)
-
-        image_file = "update_summary.png"
-        plt.savefig(image_file, bbox_inches='tight')
-        plt.close(fig)
-
-        # Show in Streamlit
-        st.image(image_file, caption="📸 Update Summary")
-
-        # Download button for the image
-        with open(image_file, "rb") as f:
-            st.download_button("📥 Download Update Image",
-                               f,
-                               file_name="update_summary.png",
-                               mime="image/png")
-
-        # WhatsApp share button (click-to-chat)
-        phone_number = "966XXXXXXXXX"  # replace with target phone (with country code)
-        message = "Please find the updated WPR record attached."
-        wa_url = f"https://wa.me/{phone_number}?text={message}"
-        st.markdown(f"[📲 Send via WhatsApp]({wa_url})")
+        # 📸 Show update summary
+        st.markdown("### 📸 Update Summary")
+        st.table(pd.DataFrame([new_row]))   # cleaner table view instead of JSON
 
     except Exception as e:
-        st.error(f"Failed to save to Excel or generate image: {e}")
+        st.error(f"Failed to save to Excel: {e}")
