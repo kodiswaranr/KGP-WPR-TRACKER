@@ -3,7 +3,7 @@ import pandas as pd
 import os
 import re
 import base64
-from datetime import datetime, timedelta
+from datetime import datetime
 
 # --------------------------
 # Config / File paths
@@ -71,24 +71,6 @@ def style_dataframe(df):
             ('box-shadow', '0 0 20px rgba(0, 0, 0, 0.15)')
         ]}
     ]).format(precision=2)
-
-def get_date_column(df):
-    """Find the date column in the dataframe."""
-    date_columns = []
-    for col in df.columns:
-        if any(keyword in col.upper() for keyword in ['DATE', 'TIME']):
-            if 'DATE' in col.upper() and 'TIME' not in col.upper():
-                date_columns.append(col)
-    return date_columns[0] if date_columns else None
-
-def convert_to_datetime(df, date_col):
-    """Convert date column to datetime with error handling."""
-    try:
-        # Try different date formats
-        df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
-        return df, True
-    except Exception as e:
-        return df, False
 
 # --------------------------
 # Page setup
@@ -287,22 +269,20 @@ if admin_pass:
                     admin_df = pd.read_excel(excel_file)
                     
                     if not admin_df.empty:
-                        # Enhanced Filters Section
+                        # Simple Filters Section
                         st.markdown("### 🔍 **Data Filters**")
                         
-                        # Create filter columns
-                        filter_col1, filter_col2 = st.columns([1, 1])
+                        col1, col2, col3 = st.columns(3)
                         
-                        with filter_col1:
-                            st.markdown("#### 👤 **Employee & Permit Filters**")
-                            
+                        with col1:
                             # Filter by employee name
                             if 'NAME' in admin_df.columns:
                                 names = ['All'] + sorted(admin_df['NAME'].dropna().unique().tolist())
-                                selected_name = st.selectbox("🔸 Filter by Employee", names)
+                                selected_name = st.selectbox("Filter by Employee", names)
                             else:
                                 selected_name = 'All'
-                            
+                        
+                        with col2:
                             # Filter by permit type
                             permit_col = None
                             for col in admin_df.columns:
@@ -312,226 +292,121 @@ if admin_pass:
                             
                             if permit_col:
                                 permits = ['All'] + sorted(admin_df[permit_col].dropna().unique().tolist())
-                                selected_permit = st.selectbox("🔸 Filter by Permit Type", permits)
+                                selected_permit = st.selectbox("Filter by Permit Type", permits)
                             else:
                                 selected_permit = 'All'
                         
-                        with filter_col2:
-                            st.markdown("#### 📅 **Date Filters**")
-                            
-                            # Find date column
-                            date_col = get_date_column(admin_df)
+                        with col3:
+                            # Simple date filter checkbox
+                            date_col = None
+                            for col in admin_df.columns:
+                                if 'DATE' in col.upper() and 'TIME' not in col.upper():
+                                    date_col = col
+                                    break
                             
                             if date_col:
-                                # Convert to datetime
-                                admin_df, date_conversion_success = convert_to_datetime(admin_df, date_col)
-                                
-                                if date_conversion_success:
-                                    # Quick date filter options
-                                    date_filter_type = st.selectbox(
-                                        "🔸 Date Filter Type",
-                                        ["No Filter", "Quick Filters", "Custom Range"],
-                                        help="Choose how you want to filter by date"
-                                    )
-                                    
-                                    if date_filter_type == "Quick Filters":
-                                        quick_filter = st.selectbox(
-                                            "🔸 Quick Filter",
-                                            [
-                                                "All Time",
-                                                "Today", 
-                                                "Yesterday",
-                                                "Last 3 Days",
-                                                "Last 7 Days", 
-                                                "Last 14 Days",
-                                                "Last 30 Days",
-                                                "This Week",
-                                                "This Month",
-                                                "Last Month"
-                                            ]
-                                        )
-                                        
-                                        # Calculate date ranges based on selection
-                                        today = datetime.now().date()
-                                        
-                                        if quick_filter == "Today":
-                                            start_date = end_date = today
-                                        elif quick_filter == "Yesterday":
-                                            start_date = end_date = today - timedelta(days=1)
-                                        elif quick_filter == "Last 3 Days":
-                                            start_date = today - timedelta(days=2)
-                                            end_date = today
-                                        elif quick_filter == "Last 7 Days":
-                                            start_date = today - timedelta(days=6)
-                                            end_date = today
-                                        elif quick_filter == "Last 14 Days":
-                                            start_date = today - timedelta(days=13)
-                                            end_date = today
-                                        elif quick_filter == "Last 30 Days":
-                                            start_date = today - timedelta(days=29)
-                                            end_date = today
-                                        elif quick_filter == "This Week":
-                                            start_date = today - timedelta(days=today.weekday())
-                                            end_date = today
-                                        elif quick_filter == "This Month":
-                                            start_date = today.replace(day=1)
-                                            end_date = today
-                                        elif quick_filter == "Last Month":
-                                            last_month = today.replace(day=1) - timedelta(days=1)
-                                            start_date = last_month.replace(day=1)
-                                            end_date = last_month
-                                        else:  # All Time
-                                            start_date = end_date = None
-                                    
-                                    elif date_filter_type == "Custom Range":
-                                        st.markdown("**Select Custom Date Range:**")
-                                        date_col1, date_col2 = st.columns(2)
-                                        
-                                        with date_col1:
-                                            start_date = st.date_input(
-                                                "📅 Start Date",
-                                                value=admin_df[date_col].dt.date.min() if not admin_df[date_col].isna().all() else today,
-                                                help="Select the start date for filtering"
-                                            )
-                                        
-                                        with date_col2:
-                                            end_date = st.date_input(
-                                                "📅 End Date",
-                                                value=admin_df[date_col].dt.date.max() if not admin_df[date_col].isna().all() else today,
-                                                help="Select the end date for filtering"
-                                            )
-                                        
-                                        # Validate date range
-                                        if start_date > end_date:
-                                            st.error("❌ Start date cannot be after end date!")
-                                            start_date = end_date = None
-                                    
-                                    else:  # No Filter
-                                        start_date = end_date = None
-                                        
-                                else:
-                                    st.warning("⚠️ Could not parse date column. Date filtering unavailable.")
-                                    start_date = end_date = None
-                                    date_filter_type = "No Filter"
+                                use_date_filter = st.checkbox("📅 Filter by Date Range")
                             else:
-                                st.info("ℹ️ No date column found in data.")
-                                start_date = end_date = None
-                                date_filter_type = "No Filter"
+                                use_date_filter = False
+                        
+                        # Date range pickers (only show if checkbox is checked)
+                        start_date = None
+                        end_date = None
+                        
+                        if use_date_filter and date_col:
+                            # Convert date column to datetime
+                            try:
+                                admin_df[date_col] = pd.to_datetime(admin_df[date_col], errors='coerce')
+                                
+                                # Get min and max dates from data
+                                min_date = admin_df[date_col].dt.date.min()
+                                max_date = admin_df[date_col].dt.date.max()
+                                
+                                st.markdown("#### 📅 **Select Date Range:**")
+                                date_col1, date_col2 = st.columns(2)
+                                
+                                with date_col1:
+                                    start_date = st.date_input(
+                                        "From Date",
+                                        value=min_date if min_date else datetime.now().date(),
+                                        help="Select start date"
+                                    )
+                                
+                                with date_col2:
+                                    end_date = st.date_input(
+                                        "To Date", 
+                                        value=max_date if max_date else datetime.now().date(),
+                                        help="Select end date"
+                                    )
+                                
+                                # Validate date range
+                                if start_date and end_date and start_date > end_date:
+                                    st.error("❌ Start date cannot be after end date!")
+                                    start_date = end_date = None
+                                
+                            except Exception as e:
+                                st.warning("⚠️ Could not parse date column for filtering.")
+                                use_date_filter = False
                         
                         # Apply filters
                         filtered_df = admin_df.copy()
-                        filter_info = []
                         
                         # Apply employee filter
                         if selected_name != 'All':
                             filtered_df = filtered_df[filtered_df['NAME'] == selected_name]
-                            filter_info.append(f"Employee: {selected_name}")
                         
                         # Apply permit filter
                         if selected_permit != 'All' and permit_col:
                             filtered_df = filtered_df[filtered_df[permit_col] == selected_permit]
-                            filter_info.append(f"Permit: {selected_permit}")
                         
                         # Apply date filter
-                        if date_filter_type != "No Filter" and date_col and start_date and end_date:
+                        if use_date_filter and date_col and start_date and end_date:
                             try:
                                 filtered_df = filtered_df[
                                     (filtered_df[date_col].dt.date >= start_date) & 
                                     (filtered_df[date_col].dt.date <= end_date)
                                 ]
-                                filter_info.append(f"Date: {start_date} to {end_date}")
                             except Exception as e:
                                 st.error(f"❌ Error applying date filter: {e}")
                         
-                        # Show active filters
-                        if filter_info:
-                            st.markdown("---")
-                            st.markdown("### 🔎 **Active Filters:**")
-                            for info in filter_info:
-                                st.markdown(f"- {info}")
-                            
-                            # Clear filters button
-                            if st.button("🗑️ Clear All Filters"):
-                                st.rerun()
-                        
-                        # Display summary metrics
+                        # Display summary
                         st.markdown("---")
-                        st.markdown("### 📊 **Data Summary**")
-                        
                         col1, col2, col3, col4 = st.columns(4)
                         
                         with col1:
-                            st.metric(
-                                "📋 Total Records", 
-                                len(filtered_df),
-                                delta=f"{len(filtered_df) - len(admin_df)}" if len(filtered_df) != len(admin_df) else None
-                            )
+                            st.metric("Total Records", len(filtered_df))
                         
                         with col2:
                             if 'NAME' in filtered_df.columns:
                                 unique_employees = filtered_df['NAME'].nunique()
-                                st.metric("👥 Unique Employees", unique_employees)
+                                st.metric("Unique Employees", unique_employees)
                         
                         with col3:
                             if permit_col:
                                 unique_permits = filtered_df[permit_col].nunique()
-                                st.metric("📄 Permit Types", unique_permits)
+                                st.metric("Permit Types", unique_permits)
                         
                         with col4:
-                            if date_col and not filtered_df.empty:
-                                try:
-                                    date_range = filtered_df[date_col].dt.date.nunique()
-                                    st.metric("📅 Date Range (days)", date_range)
-                                except:
-                                    st.metric("📅 Date Range", "N/A")
+                            if use_date_filter and start_date and end_date:
+                                date_diff = (end_date - start_date).days + 1
+                                st.metric("Date Range (days)", date_diff)
                         
                         # Display the data table
                         st.markdown("---")
-                        st.markdown("### 📋 **Data Table**")
+                        st.subheader("📋 Data Table")
                         
                         if not filtered_df.empty:
-                            # Pagination controls
-                            col1, col2, col3 = st.columns([1, 1, 2])
+                            # Pagination
+                            rows_per_page = st.selectbox("Rows per page", [10, 25, 50, 100], index=1)
                             
-                            with col1:
-                                rows_per_page = st.selectbox("Rows per page", [10, 25, 50, 100], index=1)
-                            
-                            with col2:
-                                if len(filtered_df) > rows_per_page:
-                                    total_pages = (len(filtered_df) - 1) // rows_per_page + 1
-                                    page = st.selectbox("Page", range(1, total_pages + 1))
-                                    start_idx = (page - 1) * rows_per_page
-                                    end_idx = start_idx + rows_per_page
-                                    display_df = filtered_df.iloc[start_idx:end_idx]
-                                    
-                                    st.caption(f"Showing {start_idx + 1}-{min(end_idx, len(filtered_df))} of {len(filtered_df)} records")
-                                else:
-                                    display_df = filtered_df
-                                    page = 1
-                            
-                            with col3:
-                                # Export filtered data
-                                if st.button("📤 Export Filtered Data"):
-                                    try:
-                                        # Create Excel file for filtered data
-                                        filtered_filename = f"filtered_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-                                        filtered_df.to_excel(filtered_filename, index=False)
-                                        
-                                        with open(filtered_filename, "rb") as f:
-                                            filtered_data = f.read()
-                                        
-                                        st.download_button(
-                                            label="📥 Download Filtered Excel",
-                                            data=filtered_data,
-                                            file_name=filtered_filename,
-                                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                                        )
-                                        
-                                        # Clean up temporary file
-                                        os.remove(filtered_filename)
-                                        
-                                    except Exception as e:
-                                        st.error(f"Error creating filtered export: {e}")
+                            if len(filtered_df) > rows_per_page:
+                                total_pages = (len(filtered_df) - 1) // rows_per_page + 1
+                                page = st.selectbox("Page", range(1, total_pages + 1))
+                                start_idx = (page - 1) * rows_per_page
+                                end_idx = start_idx + rows_per_page
+                                display_df = filtered_df.iloc[start_idx:end_idx]
+                            else:
+                                display_df = filtered_df
                             
                             # Display the dataframe
                             st.dataframe(
@@ -541,13 +416,12 @@ if admin_pass:
                             )
                             
                             # Alternative styled table view
-                            if st.checkbox("🎨 Show Styled Table View"):
+                            if st.checkbox("Show Styled Table View"):
                                 styled_df = style_dataframe(display_df)
                                 st.write(styled_df.to_html(), unsafe_allow_html=True)
                         
                         else:
-                            st.warning("⚠️ No records match the selected filters.")
-                            st.info("💡 Try adjusting your filter criteria to see results.")
+                            st.warning("No records match the selected filters.")
                         
                     else:
                         st.info("📝 No data found in the Excel file yet.")
@@ -672,13 +546,6 @@ st.markdown("""
     .stDataFrame {
         border: 1px solid #e1e5e9;
         border-radius: 0.5rem;
-    }
-    
-    .date-filter-section {
-        background-color: #f8f9fa;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        border-left: 4px solid #4CAF50;
     }
 </style>
 """, unsafe_allow_html=True)
