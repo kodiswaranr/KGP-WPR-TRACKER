@@ -3,6 +3,8 @@ import pandas as pd
 import os
 import re
 import base64
+from datetime import datetime
+
 # --------------------------
 # Config / File paths
 # --------------------------
@@ -36,6 +38,40 @@ def load_logo_as_base64(path: str, width: int = 80) -> str:
         return f"<img src='data:image/png;base64,{logo_b64}' width='{width}'/>"
     return ""
 
+def style_dataframe(df):
+    """Apply custom styling to the dataframe for better presentation."""
+    return df.style.set_table_styles([
+        {'selector': 'thead th', 'props': [
+            ('background-color', '#4CAF50'),
+            ('color', 'white'),
+            ('font-weight', 'bold'),
+            ('text-align', 'center'),
+            ('font-size', '14px'),
+            ('padding', '12px')
+        ]},
+        {'selector': 'tbody td', 'props': [
+            ('text-align', 'center'),
+            ('padding', '10px'),
+            ('font-size', '12px'),
+            ('border-bottom', '1px solid #ddd')
+        ]},
+        {'selector': 'tbody tr:nth-child(even)', 'props': [
+            ('background-color', '#f9f9f9')
+        ]},
+        {'selector': 'tbody tr:hover', 'props': [
+            ('background-color', '#e8f5e8')
+        ]},
+        {'selector': 'table', 'props': [
+            ('border-collapse', 'collapse'),
+            ('margin', '25px 0'),
+            ('font-size', '0.9em'),
+            ('min-width', '400px'),
+            ('border-radius', '5px 5px 0 0'),
+            ('overflow', 'hidden'),
+            ('box-shadow', '0 0 20px rgba(0, 0, 0, 0.15)')
+        ]}
+    ]).format(precision=2)
+
 # --------------------------
 # Page setup
 # --------------------------
@@ -44,7 +80,6 @@ st.set_page_config(page_title="KGP - WPR TRACKING PORTAL", layout="wide")
 # --------------------------
 # Header bar (logos + title)
 # --------------------------
-# Use equal sizes for symmetry (both 60 px)
 left_logo_html = load_logo_as_base64(left_logo, 80)
 right_logo_html = load_logo_as_base64(right_logo, 70)
 
@@ -206,35 +241,273 @@ else:
                 try:
                     final_df.to_excel(excel_file, index=False)
                     st.success("✅ Permit details saved successfully!")
+                    # Refresh the page data
+                    st.rerun()
                 except Exception as e:
                     st.error(f"Failed to save to Excel: {e}")
 
 # --------------------------
-# Admin-protected Excel download
+# Admin-protected Excel download and data view
 # --------------------------
 st.markdown("---")
-st.markdown("### 🔐 Admin: Download Excel")
+st.markdown("### 🔐 Admin Panel: Data Management")
 
-admin_pass = st.text_input("Enter admin password to download full Excel file", type="password")
+admin_pass = st.text_input("Enter admin password to access admin panel", type="password")
 if admin_pass:
     if admin_pass == ADMIN_PASSWORD:
-        st.success("✅ Correct password. You can download the Excel file below.")
-        if os.path.exists(excel_file):
-            try:
-                with open(excel_file, "rb") as f:
-                    data_bytes = f.read()
-                st.download_button(
-                    label="📥 Download full Excel file",
-                    data=data_bytes,
-                    file_name="WPR_TRACKING_FILE.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-            except Exception as e:
-                st.error(f"Could not prepare download: {e}")
-        else:
-            st.error("Excel file not found for download.")
+        st.success("✅ Correct password. Welcome to Admin Panel!")
+        
+        # Create tabs for different admin functions
+        tab1, tab2, tab3 = st.tabs(["📊 View Data", "📥 Download Excel", "📈 Statistics"])
+        
+        with tab1:
+            st.subheader("📊 WPR Tracking Data")
+            
+            if os.path.exists(excel_file):
+                try:
+                    # Load the latest data
+                    admin_df = pd.read_excel(excel_file)
+                    
+                    if not admin_df.empty:
+                        # Add filters
+                        col1, col2, col3 = st.columns(3)
+                        
+                        with col1:
+                            # Filter by employee name
+                            if 'NAME' in admin_df.columns:
+                                names = ['All'] + sorted(admin_df['NAME'].dropna().unique().tolist())
+                                selected_name = st.selectbox("Filter by Employee", names)
+                        
+                        with col2:
+                            # Filter by permit type
+                            permit_col = None
+                            for col in admin_df.columns:
+                                if 'PERMIT' in col.upper() and 'TYPE' in col.upper():
+                                    permit_col = col
+                                    break
+                            
+                            if permit_col:
+                                permits = ['All'] + sorted(admin_df[permit_col].dropna().unique().tolist())
+                                selected_permit = st.selectbox("Filter by Permit Type", permits)
+                            else:
+                                selected_permit = 'All'
+                        
+                        with col3:
+                            # Filter by date range
+                            date_col = None
+                            for col in admin_df.columns:
+                                if 'DATE' in col.upper():
+                                    date_col = col
+                                    break
+                            
+                            if date_col:
+                                st.write("Filter by Date Range")
+                                date_filter = st.checkbox("Enable date filter")
+                            else:
+                                date_filter = False
+                        
+                        # Apply filters
+                        filtered_df = admin_df.copy()
+                        
+                        if selected_name != 'All':
+                            filtered_df = filtered_df[filtered_df['NAME'] == selected_name]
+                        
+                        if selected_permit != 'All' and permit_col:
+                            filtered_df = filtered_df[filtered_df[permit_col] == selected_permit]
+                        
+                        if date_filter and date_col:
+                            col_date1, col_date2 = st.columns(2)
+                            with col_date1:
+                                start_date = st.date_input("Start Date")
+                            with col_date2:
+                                end_date = st.date_input("End Date")
+                            
+                            # Convert date column to datetime
+                            try:
+                                filtered_df[date_col] = pd.to_datetime(filtered_df[date_col])
+                                filtered_df = filtered_df[
+                                    (filtered_df[date_col].dt.date >= start_date) & 
+                                    (filtered_df[date_col].dt.date <= end_date)
+                                ]
+                            except:
+                                st.warning("Could not filter by date - date format issue")
+                        
+                        # Display summary
+                        st.markdown("---")
+                        col1, col2, col3, col4 = st.columns(4)
+                        
+                        with col1:
+                            st.metric("Total Records", len(filtered_df))
+                        
+                        with col2:
+                            if 'NAME' in filtered_df.columns:
+                                unique_employees = filtered_df['NAME'].nunique()
+                                st.metric("Unique Employees", unique_employees)
+                        
+                        with col3:
+                            if permit_col:
+                                unique_permits = filtered_df[permit_col].nunique()
+                                st.metric("Permit Types", unique_permits)
+                        
+                        with col4:
+                            if date_col:
+                                try:
+                                    date_range = filtered_df[date_col].dt.date.nunique()
+                                    st.metric("Date Range (days)", date_range)
+                                except:
+                                    st.metric("Date Range", "N/A")
+                        
+                        # Display the styled table
+                        st.markdown("---")
+                        st.subheader("📋 Data Table")
+                        
+                        # Pagination
+                        rows_per_page = st.selectbox("Rows per page", [10, 25, 50, 100], index=1)
+                        
+                        if len(filtered_df) > rows_per_page:
+                            total_pages = (len(filtered_df) - 1) // rows_per_page + 1
+                            page = st.selectbox("Page", range(1, total_pages + 1))
+                            start_idx = (page - 1) * rows_per_page
+                            end_idx = start_idx + rows_per_page
+                            display_df = filtered_df.iloc[start_idx:end_idx]
+                        else:
+                            display_df = filtered_df
+                        
+                        # Display the styled dataframe
+                        st.dataframe(
+                            display_df,
+                            use_container_width=True,
+                            height=400
+                        )
+                        
+                        # Alternative styled table view
+                        if st.checkbox("Show Styled Table View"):
+                            styled_df = style_dataframe(display_df)
+                            st.write(styled_df.to_html(), unsafe_allow_html=True)
+                        
+                    else:
+                        st.info("📝 No data found in the Excel file yet.")
+                        
+                except Exception as e:
+                    st.error(f"Error loading Excel file: {e}")
+            else:
+                st.warning("📄 Excel file not found. Please submit some permit data first.")
+        
+        with tab2:
+            st.subheader("📥 Download Excel File")
+            
+            if os.path.exists(excel_file):
+                try:
+                    with open(excel_file, "rb") as f:
+                        data_bytes = f.read()
+                    
+                    # Show file info
+                    file_size = len(data_bytes)
+                    file_modified = datetime.fromtimestamp(os.path.getmtime(excel_file))
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.info(f"📁 File Size: {file_size:,} bytes")
+                    with col2:
+                        st.info(f"🕒 Last Modified: {file_modified.strftime('%Y-%m-%d %H:%M:%S')}")
+                    
+                    st.download_button(
+                        label="📥 Download Full Excel File",
+                        data=data_bytes,
+                        file_name=f"WPR_TRACKING_FILE_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        help="Download the complete WPR tracking file with all permit records"
+                    )
+                    
+                except Exception as e:
+                    st.error(f"Could not prepare download: {e}")
+            else:
+                st.error("📄 Excel file not found for download.")
+        
+        with tab3:
+            st.subheader("📈 Data Statistics")
+            
+            if os.path.exists(excel_file):
+                try:
+                    stats_df = pd.read_excel(excel_file)
+                    
+                    if not stats_df.empty:
+                        # Basic statistics
+                        st.write("### 📊 Overview Statistics")
+                        
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            # Permit type distribution
+                            permit_col = None
+                            for col in stats_df.columns:
+                                if 'PERMIT' in col.upper() and 'TYPE' in col.upper():
+                                    permit_col = col
+                                    break
+                            
+                            if permit_col:
+                                st.write("**Permit Type Distribution:**")
+                                permit_counts = stats_df[permit_col].value_counts()
+                                st.bar_chart(permit_counts)
+                        
+                        with col2:
+                            # Department distribution
+                            dept_col = None
+                            for col in stats_df.columns:
+                                if 'DEPARTMENT' in col.upper() or 'DISCIPLINE' in col.upper():
+                                    dept_col = col
+                                    break
+                            
+                            if dept_col:
+                                st.write("**Department Distribution:**")
+                                dept_counts = stats_df[dept_col].value_counts()
+                                st.bar_chart(dept_counts)
+                        
+                        # Recent activity
+                        st.write("### 🕒 Recent Activity")
+                        recent_records = stats_df.tail(5)
+                        if 'NAME' in recent_records.columns:
+                            st.write("**Last 5 Permit Entries:**")
+                            display_cols = ['NAME']
+                            for col in recent_records.columns:
+                                if any(keyword in col.upper() for keyword in ['PERMIT', 'DATE', 'TIME']):
+                                    display_cols.append(col)
+                            
+                            if len(display_cols) > 1:
+                                st.dataframe(recent_records[display_cols[:5]], use_container_width=True)
+                        
+                    else:
+                        st.info("📝 No data available for statistics.")
+                        
+                except Exception as e:
+                    st.error(f"Error generating statistics: {e}")
+            else:
+                st.warning("📄 No Excel file found for statistics.")
+                
     else:
         st.error("❌ Incorrect admin password.")
 
 st.markdown("---")
-st.caption("Tip: set WPR_ADMIN_PASSWORD env var to change admin password and avoid hardcoding.")
+st.caption("💡 Tip: Set WPR_ADMIN_PASSWORD environment variable to change admin password and avoid hardcoding.")
+
+# Custom CSS for better styling
+st.markdown("""
+<style>
+    .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
+        font-size: 16px;
+        font-weight: bold;
+    }
+    
+    .metric-card {
+        background-color: #f0f2f6;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        text-align: center;
+    }
+    
+    .stDataFrame {
+        border: 1px solid #e1e5e9;
+        border-radius: 0.5rem;
+    }
+</style>
+""", unsafe_allow_html=True)
