@@ -256,6 +256,3 @@ if submitted:
 
     except Exception as e:
         st.error(f"Failed to save to Excel or generate image: {e}")
-
-
-
