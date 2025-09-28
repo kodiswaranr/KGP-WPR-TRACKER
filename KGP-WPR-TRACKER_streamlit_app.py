@@ -239,6 +239,11 @@ if admin_pass:
 
 st.markdown("---")
 st.caption("Tip: set WPR_ADMIN_PASSWORD env var to change admin password and avoid hardcoding.")
+if submitted:
+    st.success("✅ Permit details saved successfully!")
+    st.markdown("### 📸 Update Summary")
+    st.json(new_row)   # or use st.table(pd.DataFrame([new_row]))
+
 
 
 
