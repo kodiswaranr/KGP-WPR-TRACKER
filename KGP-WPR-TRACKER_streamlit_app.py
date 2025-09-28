@@ -38,6 +38,50 @@ def load_logo_as_base64(path: str, width: int = 80) -> str:
         return f"<img src='data:image/png;base64,{logo_b64}' width='{width}'/>"
     return ""
 
+def find_date_column(df):
+    """Find the best date column in the dataframe."""
+    if df.empty:
+        return None
+    
+    # Look for columns that might contain dates
+    date_keywords = ['DATE', 'DAY', 'TIME']
+    possible_date_cols = []
+    
+    for col in df.columns:
+        col_upper = str(col).upper()
+        # Check if column name contains date keywords
+        for keyword in date_keywords:
+            if keyword in col_upper:
+                possible_date_cols.append(col)
+                break
+    
+    # Priority: prefer columns with just "DATE" in the name
+    for col in possible_date_cols:
+        if 'DATE' in str(col).upper() and 'TIME' not in str(col).upper():
+            return col
+    
+    # If no pure date column, return first found
+    return possible_date_cols[0] if possible_date_cols else None
+
+def convert_date_column(df, date_col):
+    """Convert date column to datetime format with multiple format attempts."""
+    if date_col not in df.columns:
+        return df, False
+    
+    try:
+        # First, try pandas auto-detection
+        df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
+        
+        # Check if we have any valid dates
+        valid_dates = df[date_col].notna().sum()
+        if valid_dates > 0:
+            return df, True
+        else:
+            return df, False
+            
+    except Exception:
+        return df, False
+
 def style_dataframe(df):
     """Apply custom styling to the dataframe for better presentation."""
     return df.style.set_table_styles([
@@ -269,6 +313,12 @@ if admin_pass:
                     admin_df = pd.read_excel(excel_file)
                     
                     if not admin_df.empty:
+                        # Debug: Show available columns
+                        with st.expander("🔍 Debug: Available Columns"):
+                            st.write("**All columns in your data:**")
+                            for i, col in enumerate(admin_df.columns):
+                                st.write(f"{i+1}. {col}")
+                        
                         # Simple Filters Section
                         st.markdown("### 🔍 **Data Filters**")
                         
@@ -286,7 +336,7 @@ if admin_pass:
                             # Filter by permit type
                             permit_col = None
                             for col in admin_df.columns:
-                                if 'PERMIT' in col.upper() and 'TYPE' in col.upper():
+                                if 'PERMIT' in str(col).upper() and 'TYPE' in str(col).upper():
                                     permit_col = col
                                     break
                             
@@ -297,56 +347,65 @@ if admin_pass:
                                 selected_permit = 'All'
                         
                         with col3:
-                            # Simple date filter checkbox
-                            date_col = None
-                            for col in admin_df.columns:
-                                if 'DATE' in col.upper() and 'TIME' not in col.upper():
-                                    date_col = col
-                                    break
+                            # Find date column with improved detection
+                            date_col = find_date_column(admin_df)
                             
                             if date_col:
+                                st.success(f"📅 Date column found: {date_col}")
                                 use_date_filter = st.checkbox("📅 Filter by Date Range")
                             else:
+                                st.warning("📅 No date column found in data")
                                 use_date_filter = False
                         
                         # Date range pickers (only show if checkbox is checked)
                         start_date = None
                         end_date = None
+                        date_filter_applied = False
                         
                         if use_date_filter and date_col:
                             # Convert date column to datetime
-                            try:
-                                admin_df[date_col] = pd.to_datetime(admin_df[date_col], errors='coerce')
-                                
+                            admin_df, date_success = convert_date_column(admin_df, date_col)
+                            
+                            if date_success:
                                 # Get min and max dates from data
-                                min_date = admin_df[date_col].dt.date.min()
-                                max_date = admin_df[date_col].dt.date.max()
+                                valid_dates = admin_df[date_col].dropna()
                                 
-                                st.markdown("#### 📅 **Select Date Range:**")
-                                date_col1, date_col2 = st.columns(2)
-                                
-                                with date_col1:
-                                    start_date = st.date_input(
-                                        "From Date",
-                                        value=min_date if min_date else datetime.now().date(),
-                                        help="Select start date"
-                                    )
-                                
-                                with date_col2:
-                                    end_date = st.date_input(
-                                        "To Date", 
-                                        value=max_date if max_date else datetime.now().date(),
-                                        help="Select end date"
-                                    )
-                                
-                                # Validate date range
-                                if start_date and end_date and start_date > end_date:
-                                    st.error("❌ Start date cannot be after end date!")
-                                    start_date = end_date = None
-                                
-                            except Exception as e:
-                                st.warning("⚠️ Could not parse date column for filtering.")
-                                use_date_filter = False
+                                if len(valid_dates) > 0:
+                                    min_date = valid_dates.dt.date.min()
+                                    max_date = valid_dates.dt.date.max()
+                                    
+                                    st.markdown("#### 📅 **Select Date Range:**")
+                                    st.info(f"Available date range: {min_date} to {max_date}")
+                                    
+                                    date_col1, date_col2 = st.columns(2)
+                                    
+                                    with date_col1:
+                                        start_date = st.date_input(
+                                            "From Date",
+                                            value=min_date,
+                                            min_value=min_date,
+                                            max_value=max_date,
+                                            help="Select start date"
+                                        )
+                                    
+                                    with date_col2:
+                                        end_date = st.date_input(
+                                            "To Date", 
+                                            value=max_date,
+                                            min_value=min_date,
+                                            max_value=max_date,
+                                            help="Select end date"
+                                        )
+                                    
+                                    # Validate date range
+                                    if start_date and end_date and start_date <= end_date:
+                                        date_filter_applied = True
+                                    elif start_date and end_date:
+                                        st.error("❌ Start date cannot be after end date!")
+                                else:
+                                    st.warning("⚠️ No valid dates found in the date column.")
+                            else:
+                                st.warning("⚠️ Could not parse dates in the date column.")
                         
                         # Apply filters
                         filtered_df = admin_df.copy()
@@ -360,12 +419,11 @@ if admin_pass:
                             filtered_df = filtered_df[filtered_df[permit_col] == selected_permit]
                         
                         # Apply date filter
-                        if use_date_filter and date_col and start_date and end_date:
+                        if date_filter_applied and date_col:
                             try:
-                                filtered_df = filtered_df[
-                                    (filtered_df[date_col].dt.date >= start_date) & 
-                                    (filtered_df[date_col].dt.date <= end_date)
-                                ]
+                                mask = (filtered_df[date_col].dt.date >= start_date) & (filtered_df[date_col].dt.date <= end_date)
+                                filtered_df = filtered_df[mask]
+                                st.success(f"✅ Date filter applied: {start_date} to {end_date}")
                             except Exception as e:
                                 st.error(f"❌ Error applying date filter: {e}")
                         
@@ -387,7 +445,7 @@ if admin_pass:
                                 st.metric("Permit Types", unique_permits)
                         
                         with col4:
-                            if use_date_filter and start_date and end_date:
+                            if date_filter_applied and start_date and end_date:
                                 date_diff = (end_date - start_date).days + 1
                                 st.metric("Date Range (days)", date_diff)
                         
@@ -479,7 +537,7 @@ if admin_pass:
                             # Permit type distribution
                             permit_col = None
                             for col in stats_df.columns:
-                                if 'PERMIT' in col.upper() and 'TYPE' in col.upper():
+                                if 'PERMIT' in str(col).upper() and 'TYPE' in str(col).upper():
                                     permit_col = col
                                     break
                             
@@ -492,7 +550,7 @@ if admin_pass:
                             # Department distribution
                             dept_col = None
                             for col in stats_df.columns:
-                                if 'DEPARTMENT' in col.upper() or 'DISCIPLINE' in col.upper():
+                                if 'DEPARTMENT' in str(col).upper() or 'DISCIPLINE' in str(col).upper():
                                     dept_col = col
                                     break
                             
@@ -508,7 +566,7 @@ if admin_pass:
                             st.write("**Last 5 Permit Entries:**")
                             display_cols = ['NAME']
                             for col in recent_records.columns:
-                                if any(keyword in col.upper() for keyword in ['PERMIT', 'DATE', 'TIME']):
+                                if any(keyword in str(col).upper() for keyword in ['PERMIT', 'DATE', 'TIME']):
                                     display_cols.append(col)
                             
                             if len(display_cols) > 1:
