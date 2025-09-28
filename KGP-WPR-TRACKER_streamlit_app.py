@@ -216,13 +216,25 @@ st.markdown("---")
 st.markdown("### 🔐 Admin: Download Excel")
 
 admin_pass = st.text_input("Enter admin password to download full Excel file", type="password")
-if admin_pass: if admin_pass == ADMIN_PASSWORD: st.success("✅ Correct password. You can download the Excel file below.")
-    if os.path.exists(excel_file):
-        try: with open(excel_file, "rb") as f: data_bytes = f.read()
-            st.download_button( label="📥 Download full Excel file", data=data_bytes,
-                               file_name="WPR_TRACKING_FILE.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" )
-except Exception as e: st.error(f"Could not prepare download: {e}")
-else: st.error("Excel file not found for download.")
-else: st.error("❌ Incorrect admin password.")
-st.markdown("---") st.caption("Tip: set WPR_ADMIN_PASSWORD env var to change admin password and avoid hardcoding.")
+if admin_pass:
+    if admin_pass == ADMIN_PASSWORD:
+        st.success("✅ Correct password. You can download the Excel file below.")
+        if os.path.exists(excel_file):
+            try:
+                with open(excel_file, "rb") as f:
+                    data_bytes = f.read()
+                st.download_button(
+                    label="📥 Download full Excel file",
+                    data=data_bytes,
+                    file_name="WPR_TRACKING_FILE.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+            except Exception as e:
+                st.error(f"Could not prepare download: {e}")
+        else:
+            st.error("Excel file not found for download.")
+    else:
+        st.error("❌ Incorrect admin password.")
 
+st.markdown("---")
+st.caption("Tip: set WPR_ADMIN_PASSWORD env var to change admin password and avoid hardcoding.")
