@@ -214,9 +214,7 @@ else:
 # --------------------------
 st.markdown("---")
 st.markdown("### 🔐 Admin: Download Excel")
-pip install matplotlib
 import matplotlib.pyplot as plt
-
 if submitted:
     try:
         # Save back to Excel
@@ -262,4 +260,5 @@ if submitted:
 
     except Exception as e:
         st.error(f"Failed to save to Excel or generate image: {e}")
+
 
