@@ -214,14 +214,3 @@ else:
 # --------------------------
 st.markdown("---")
 st.markdown("### 🔐 Admin: Download Excel")
-if submitted:
-    try:
-        final_df.to_excel(excel_file, index=False)
-        st.success("✅ Permit details saved successfully!")
-
-        # 📸 Show update summary
-        st.markdown("### 📸 Update Summary")
-        st.table(pd.DataFrame([new_row]))   # cleaner table view instead of JSON
-
-    except Exception as e:
-        st.error(f"Failed to save to Excel: {e}")
